@@ -52,6 +52,12 @@ class Player(pygame.sprite.Sprite):
         if movement[pygame.K_RIGHT]:
             self.rect.x += self.speed
             
+        # Prevent player from leaving the screen
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+
         # Jumping
         if movement[pygame.K_SPACE] and self.on_ground:
             self.y_velocity = -self.jump_speed
@@ -67,7 +73,7 @@ class Player(pygame.sprite.Sprite):
             self.on_ground = True
             self.y_velocity = 0
 
-    # Creates a ne projectile        
+    # Creates a new projectile        
     def shoot(self):
         return Projectile(self.rect.right, self.rect.centery)
     
@@ -153,7 +159,7 @@ class Collectible(pygame.sprite.Sprite):
         self.kill() # Removes collectable after being collected
 
 # Display the "Game Over" screen
-def game_over_screen():
+def game_over():
     screen.fill(WHITE) # Makes screen white
     game_over_text = font.render("GAME OVER", True, BLACK) # Produces game over text
     restart_text = font.render("Press SPACE to Restart", True, BLACK) # Produces restart insrutctions
@@ -171,8 +177,31 @@ def game_over_screen():
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 restart = True # Restarts of space is pressed
 
+# Add the instruction screen function
+def instructions():
+    screen.fill(WHITE)  # Clear the screen
+    instructions_text = font.render("Use Z to shoot, arrow keys to move and space to jump!!", True, BLACK)
+    press_key_text = font.render("Press Enter to Start", True, BLACK)
+    
+    # Draw the instructions at the center of the screen
+    screen.blit(instructions_text, (SCREEN_WIDTH // 2 - instructions_text.get_width() // 2, SCREEN_HEIGHT // 2 - 50))
+    screen.blit(press_key_text, (SCREEN_WIDTH // 2 - press_key_text.get_width() // 2, SCREEN_HEIGHT // 2 + 50))
+    
+    pygame.display.update()  # Update the screen to display the text
+    
+    # Wait for the player to press Enter to start the game
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:  # Start the game on Enter press
+                    waiting = False
+
 # Display the "Game Complete" screen
-def game_complete_screen(): 
+def game_complete(): 
     screen.fill(WHITE) # Fills with white colour 
     game_complete_text = font.render("GAME COMPLETE", True, BLACK) # Produces game complete text
     restart_text = font.render("Press SPACE to Restart", True, BLACK) # Produces restart text 
@@ -191,7 +220,9 @@ def game_complete_screen():
                 restart = True # Restarts 
 
 # Main game loop
-def main_game():
+def game():
+    instructions()
+
     player = Player() # Creates player instance 
     all_sprites = pygame.sprite.Group() # Group for all sprites
     projectiles = pygame.sprite.Group() # Group for all projectiles
@@ -269,9 +300,9 @@ def main_game():
 
         # Player collides with enemies
         if pygame.sprite.spritecollide(player, enemies, False):
-            if player.take_damage(10): # Player takes damage
-                game_over_screen() # Displays game over screen
-                return main_game()  # Restart the game
+            if player.take_damage(2): # Player takes damage
+                game_over() # Displays game over screen
+                return game()  # Restart the game
 
         # Player collects collectibles
         for collectible in pygame.sprite.spritecollide(player, collectibles, False):
@@ -279,8 +310,8 @@ def main_game():
 
         # If boss is defeated, the game is complete
         if boss_fight and not boss.alive():
-            game_complete_screen() # Display game complete screen
-            return main_game()  # Restart the game
+            game_complete() # Display game complete screen
+            return game()  # Restart the game
 
         # Drawing
         screen.fill(WHITE) 
@@ -307,4 +338,3 @@ def main_game():
     pygame.quit()
 
 if __name__ == "__main__":
-    main_game() # Satrts the game
