@@ -3,69 +3,108 @@ import random
 import json
 import os
 
-# Base class for flashcards
 class Flashcard:
     """Class represents a Flashcard with a question and answer."""  
     def __init__(self, question, answer):
          # Encapsulation: attributes are private to this class
-        self.question = question
-        self.answer = answer
+        self.__question = question
+        self.__answer = answer
+
+    def get_question(self):
+        """Getter method for question."""
+        return self.__question
+
+    def get_answer(self):
+        """Getter method for answer."""
+        return self.__answer
+    
 
     def __str__(self):
-        """String representation of the flashcard."""
-        # polymorphism
+        """Returns Q and A string."""
+        # polymorphism, can be overidden in EditableFlashcard
         return f"Q: {self.__question} | A: {self.__answer}"
 
-# Inherits Flashcard class and extends functionality
-class EditableFlashcard(Flashcard):
-    """Subclass of Flashcard to allow editing."""
-    def edit(self, new_question, new_answer):
-        """Edit the question and answer of the flashcard."""
-        # Method overriding
-        self.question = new_question
-        self.answer = new_answer
+class Taggable:
+    """Class that adds tagging capability to flashcards."""
+    def __init__(self, tags=""):
+        self.tags = tags
 
-# Decorator for validating inputs
-def validate_input(func):
-    def wrapper(self, *args, **kwargs):
-        if not args[0] or not args[1]:
-            # Update status label
-            self.status_label.config(text="Both question and answer must be provided.")  
-            return
-        return func(self, *args, **kwargs)
-    return wrapper
+    def add_tag(self, tag):
+        """Add a tag to the tag string."""
+        self.tags = tag
+
+    def remove_tag(self, tag):
+        """Remove a tag from the flashcard."""
+        self.tag = ""
+
+    def get_tag(self):
+        """Return the tag."""
+        return self.tags
+
+# Inherits both Flashcard and Taggable classes (multiple inheritance)
+class EditableFlashcard(Flashcard, Taggable):
+    """Subclass of Flashcard and Taggable to allow editing and tagging."""
+    
+    def __init__(self, question, answer, tags):
+        Flashcard.__init__(self, question, answer)
+        Taggable.__init__(self, tags)
+
+    def edit(self, new_question, new_answer,new_tags):
+        # Method overiding
+        """This method overrides the preset flashcard question and answer."""
+        self._EditableFlashcard__question = new_question
+        self._EditableFlashcard__answer = new_answer
+        self.tags = new_tags
+
+    def __str__(self):
+        # Polymorphism
+        """Overrides the Flashcard's __str__ method to include tags."""
+
+        return f"Q: {self.get_question()} | A: {self.get_answer()} | Tags: {self.get_tag()}"
+
+# Decorator for UI feedback
+def provide_feedback(success_message):
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            result = func(self, *args, **kwargs)
+            self.status_label.config(text=success_message)
+            return result
+        return wrapper
+    return decorator
 
 class FlashcardManager:
     """Class to manage a collection of flashcards."""
+    
     def __init__(self, filename='flashcards.json'):
         # List to store flashcards
         self.flashcards = [] 
-        # Filename for saving/loading 
+        # Filename for saving/loading
         self.filename = filename  
         # Load flashcards when manager is initialized
         self.load_flashcards()
 
-    def add_flashcard(self, question, answer):
-        """Add a flashcard to the collection."""
-        flashcard = EditableFlashcard(question, answer)
-        self.flashcards.append(flashcard)  
-        self.save_flashcards()  
+    def add_flashcard(self, question, answer, tags):
+        """Add a tagged flashcard to the collection."""
+        flashcard = EditableFlashcard(question, answer, tags)
+        self.flashcards.append(flashcard)
+        self.save_flashcards()
 
-    def edit_flashcard(self, index, new_question, new_answer):
+    def edit_flashcard(self, index, new_question, new_answer, new_tags):
         """Edit a flashcard at a specified index."""
         if 0 <= index < len(self.flashcards):
-            self.flashcards[index].edit(new_question, new_answer) 
+            self.flashcards[index].edit(new_question, new_answer, new_tags) 
             self.save_flashcards()
 
+    
     def delete_flashcard(self, index):
         """Delete a flashcard at a specified index."""
         if 0 <= index < len(self.flashcards):
             del self.flashcards[index]
-            self.save_flashcards()  
+            self.save_flashcards()
 
     def get_flashcard_list(self):
         """Return a list of flashcards as strings."""
-        # Polymorphism, uses __str__ method
+        # Polymorphism 
         return [str(flashcard) for flashcard in self.flashcards]
 
     def get_random_flashcard(self):
@@ -74,53 +113,55 @@ class FlashcardManager:
             return random.choice(self.flashcards)
         return None
 
+
     def save_flashcards(self):
-        """Saves flashcards to file"""
+        """Save flashcards to file."""
         with open(self.filename, 'w') as f:
-            json.dump([{'question': fc.question, 'answer': fc.answer} for fc in self.flashcards], f)
+            json.dump([{
+                'question': fc.get_question(), 
+                'answer': fc.get_answer(), 
+                'tags': fc.get_tag()
+            } for fc in self.flashcards], f)
+    
 
     def load_flashcards(self):
-        """Loads flashcards from file"""
+        """Load flashcards from file."""
         if os.path.exists(self.filename):
             with open(self.filename, 'r') as f:
                 data = json.load(f)
-                self.flashcards = [EditableFlashcard(item['question'], item['answer']) for item in data]
+                self.flashcards = [
+                    EditableFlashcard(item['question'], item['answer'], item['tags']) 
+                    for item in data
+                ]
 
 class FlashcardApp:
     """Main class for the Flashcard App."""
-
+    
     def __init__(self, master):
         self.master = master
         self.master.title("Flashcard App")
         self.master.geometry("550x700")
-        # Create a FlashcardManager instance
         self.manager = FlashcardManager()
-        # Current flashcard to display
-        self.current_flashcard = None 
-        # For storing previously shown flashcards 
+        self.current_flashcard = []
         self.previous_flashcards = []
-        # Set up the main menu
         self.setup_main_menu()
 
-        # Create a persistent status label
-        self.status_label = tk.Label(self.master, text="", fg="red", bg="#A7C6ED", font=('Arial', 12))
+        # Status label (persistent)
+        self.status_label = tk.Label(self.master, text="", fg="red", bg="#F0F0F0", font=('Arial', 12))
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
 
     def setup_main_menu(self):
         """Set up the main menu UI."""
-
-        # Clear previous widgets except for the status label
         for widget in self.master.winfo_children():
             if widget != self.status_label:
                 widget.destroy()
 
-        # Main menu frame
         self.menu_frame = tk.Frame(self.master, bg="#A7C6ED")
         self.menu_frame.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
-        # Title
+        #Title:
         self.title_label = tk.Label(self.menu_frame, text="Flashcards", font=('Arial', 20), bg="#A7C6ED")
         self.title_label.pack(pady=20)
-        # Buttons
+        # Main Menu Buttons
         self.create_flashcard_button = tk.Button(self.menu_frame, text="Create Flashcard", command=self.setup_create_flashcard, width=20, height=2)
         self.create_flashcard_button.pack(pady=10)
 
@@ -135,15 +176,13 @@ class FlashcardApp:
 
     def setup_create_flashcard(self):
         """Open the create flashcard window."""
-        
         # Clear previous widgets except for the status label
         for widget in self.master.winfo_children():
             if widget != self.status_label:
                 widget.destroy()
 
-        self.frame = tk.Frame(self.master, bg="#A7C6ED") 
+        self.frame = tk.Frame(self.master, bg="#A7C6ED")
         self.frame.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
-
         # Question box
         self.question_label = tk.Label(self.frame, text="Question:", bg="#A7C6ED", font=('Arial', 14))
         self.question_label.pack(pady=5)
@@ -154,30 +193,34 @@ class FlashcardApp:
         self.answer_label.pack(pady=5)
         self.answer_text = tk.Text(self.frame, width=50, height=5, font=('Arial', 12))
         self.answer_text.pack(pady=5)
-
-        #Buttons
+        # Category box (tags)
+        self.tag_label = tk.Label(self.frame, text="Category:", bg="#A7C6ED", font=('Arial', 14))
+        self.tag_label.pack(pady=5)
+        self.tag_text = tk.Text(self.frame, width=50, height=2, font=('Arial', 12))
+        self.tag_text.pack(pady=5)
+        # Buttons!
         self.add_button = tk.Button(self.frame, text="Add Flashcard", command=self.add_flashcard, width=20, height=2)
         self.add_button.pack(pady=5)
 
         self.back_button = tk.Button(self.frame, text="Back to Menu", command=self.setup_main_menu, width=20, height=2)
         self.back_button.pack(pady=5)
 
+    @provide_feedback("Flashcard added successfully!")
     def add_flashcard(self):
         """Submit a new flashcard."""
-        # Get question and answer
+        # Get question, answer, and tags
         question = self.question_text.get("1.0", tk.END).strip()
         answer = self.answer_text.get("1.0", tk.END).strip()
-
+        tags = self.tag_text.get("1.0", tk.END).strip()
         # Error handling
         if not question or not answer:
-            self.status_label.config(text="Both question and answer must be provided.")
+            self.status_label.config(text="Error: Question and Answer fields cannot be blank!")
             return
-        
         # Add flashcard using manager
-        self.manager.add_flashcard(question, answer)
-        self.question_text.delete("1.0", tk.END) 
-        self.answer_text.delete("1.0", tk.END)  
-        self.status_label.config(text="Flashcard added!")
+        self.manager.add_flashcard(question, answer, tags)
+        self.question_text.delete("1.0", tk.END)
+        self.answer_text.delete("1.0", tk.END)
+        self.tag_text.delete("1.0", tk.END)
 
     def setup_edit_flashcards(self):
         """Open the edit flashcard window."""
@@ -185,7 +228,6 @@ class FlashcardApp:
         for widget in self.master.winfo_children():
             if widget != self.status_label:
                 widget.destroy()
-
         # Setup display
         self.edit_frame = tk.Frame(self.master, bg="#A7C6ED")
         self.edit_frame.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
@@ -195,19 +237,17 @@ class FlashcardApp:
 
         self.flashcard_frame = tk.Frame(self.edit_frame)
         self.flashcard_frame.pack(pady=5)
-
-        self.flashcard_listbox = tk.Listbox(self.flashcard_frame, width=50, height=10, font=('Arial', 12))
+        # Listbox
+        self.flashcard_listbox = tk.Listbox(self.flashcard_frame, width=50, height=20, font=('Arial', 12))
         self.flashcard_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.scrollbar = tk.Scrollbar(self.flashcard_frame, command=self.flashcard_listbox.yview)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.flashcard_listbox.config(yscrollcommand=self.scrollbar.set)
-
         # Populate the listbox with flashcards
         self.update_flashcard_listbox()
-
-        # Buttons
+        # Buttons!
         self.delete_button = tk.Button(self.edit_frame, text="Delete Flashcard", command=self.delete_flashcard, width=20, height=2)
         self.delete_button.pack(pady=10)
 
@@ -218,70 +258,70 @@ class FlashcardApp:
         self.back_button.pack(pady=10)
 
     def update_flashcard_listbox(self):
-        """Clear and update the flashcard listbox."""
+        """Update the listbox to show current flashcards."""
         self.flashcard_listbox.delete(0, tk.END)
         for index, flashcard in enumerate(self.manager.flashcards):
-            self.flashcard_listbox.insert(tk.END, f"Q{index + 1}: '{flashcard.question}' Ans: '{flashcard.answer}'")  
+            # Display question, answer, and tags
+            self.flashcard_listbox.insert(tk.END, f"Q{index + 1}: {flashcard.get_question()}| Ans: {flashcard.get_answer()} | Tags: {flashcard.get_tag()}")
 
+    @provide_feedback("Flashcard deleted successfully!")
     def delete_flashcard(self):
         """Delete the selected flashcard."""
         selected_index = self.flashcard_listbox.curselection()
         if selected_index:
             self.manager.delete_flashcard(selected_index[0])
             self.update_flashcard_listbox() 
-            self.status_label.config(text="Flashcard deleted.")
 
     def edit_flashcard(self):
         """Open the edit window for the selected flashcard."""
-
-        # Get selected index
+        # Get selected flashcard
         selected_index = self.flashcard_listbox.curselection()
-        # Update status label
+        # Error handling
         if not selected_index:
             self.status_label.config(text="Select a flashcard to edit.")
             return
-        # Store selected index
         self.selected_flashcard_index = selected_index[0]
-        # Get selected flashcard
         self.selected_flashcard = self.manager.flashcards[self.selected_flashcard_index]
-
         # Clear previous widgets for editing
         for widget in self.edit_frame.winfo_children():
             widget.destroy()
-        # Label
+        # Edit question label and text box
         self.edit_question_label = tk.Label(self.edit_frame, text="Edit Question:", bg="#A7C6ED", font=('Arial', 14))
         self.edit_question_label.pack()
-         # Insert current question
         self.edit_question_text = tk.Text(self.edit_frame, width=50, height=5, font=('Arial', 12))
-        self.edit_question_text.insert(tk.END, self.selected_flashcard.question) 
         self.edit_question_text.pack()
-        # Label
+        self.edit_question_text.insert("1.0", self.selected_flashcard.get_question())
+        # Edit answer label and text box
         self.edit_answer_label = tk.Label(self.edit_frame, text="Edit Answer:", bg="#A7C6ED", font=('Arial', 14))
         self.edit_answer_label.pack()
-        # Insert current answer
         self.edit_answer_text = tk.Text(self.edit_frame, width=50, height=5, font=('Arial', 12))
-        self.edit_answer_text.insert(tk.END, self.selected_flashcard.answer)  
         self.edit_answer_text.pack()
-
-        # Buttons
+        self.edit_answer_text.insert("1.0", self.selected_flashcard.get_answer())
+        # Edit tag label and text box
+        self.edit_tag_label = tk.Label(self.edit_frame, text="Edit Category:", bg="#A7C6ED", font=('Arial', 14))
+        self.edit_tag_label.pack()
+        self.edit_tag_text = tk.Text(self.edit_frame, width=50, height=5, font=('Arial', 12))
+        self.edit_tag_text.pack()
+        self.edit_tag_text.insert("1.0", self.selected_flashcard.get_tag())
+        # Buttons!
         self.save_button = tk.Button(self.edit_frame, text="Save Changes", command=self.save_changes, width=20, height=2)
-        self.save_button.pack(pady=10)
+        self.save_button.pack(pady=5)
+        self.back_button = tk.Button(self.edit_frame, text="Back to Edit Menu", command=self.setup_edit_flashcards, width=20, height=2)
+        self.back_button.pack(pady=5)
 
-        self.back_button = tk.Button(self.edit_frame, text="Back to List", command=self.setup_edit_flashcards, width=20, height=2)
-        self.back_button.pack(pady=10)
-
+    @provide_feedback("Flashcard saved successfully!")
     def save_changes(self):
         """Save changes to the selected flashcard."""
         # Get new question and answer
         new_question = self.edit_question_text.get("1.0", tk.END).strip() 
         new_answer = self.edit_answer_text.get("1.0", tk.END).strip() 
+        new_tags = self.edit_tag_text.get("1.0", tk.END).strip()
         # Error handling
         if not new_question or not new_answer:
-            self.status_label = tk.Label(self.edit_frame, text="", fg="red", bg="#A7C6ED", font=('Arial', 12))
-            self.status_label.pack()
+            self.status_label.config(text="Error: Question and Answer fields cannot be blank!")
             return
         # Save changes and return to edit mode
-        self.manager.edit_flashcard(self.selected_flashcard_index, new_question, new_answer)
+        self.manager.edit_flashcard(self.selected_flashcard_index, new_question, new_answer, new_tags)
         self.setup_edit_flashcards()
 
     def test_mode(self):
@@ -293,16 +333,16 @@ class FlashcardApp:
 
         self.test_frame = tk.Frame(self.master, bg="#A7C6ED")
         self.test_frame.pack(pady=20, padx=20, fill=tk.BOTH, expand=True)
-
+        # Tag display
+        self.tag_label = tk.Label(self.test_frame, text="", font=('Arial', 18), bg="#A7C6ED", wraplength=500)
+        self.tag_label.pack(pady=20)
         # Question display
         self.question_label = tk.Label(self.test_frame, text="", font=('Arial', 18), bg="#A7C6ED", wraplength=500)
         self.question_label.pack(pady=20)
-
         # Answer display
         self.answer_label = tk.Label(self.test_frame, text="", font=('Arial', 18), bg="#A7C6ED", wraplength=500)
         self.answer_label.pack(pady=20)
-
-        # Buttons
+        # Buttons!
         self.show_answer_button = tk.Button(self.test_frame, text="Show Answer", command=self.show_answer, width=20, height=2)
         self.show_answer_button.pack(pady=10)
 
@@ -311,7 +351,6 @@ class FlashcardApp:
 
         self.back_button = tk.Button(self.test_frame, text="Back to Menu", command=self.setup_main_menu, width=20, height=2)
         self.back_button.pack(pady=10)
-
         # Reset & load first flashcard
         self.previous_flashcards = []
         self.next_flashcard()
@@ -321,19 +360,22 @@ class FlashcardApp:
         # Error handling
         if len(self.previous_flashcards) == len(self.manager.flashcards):
             self.status_label.config(text="No more flashcards available.")
+            self.tag_label.config(text="")
             self.question_label.config(text="")
             self.answer_label.config(text="")
             return
-        
+
         while True:
             flashcard = self.manager.get_random_flashcard()
             if flashcard not in self.previous_flashcards:
                 # Record shown flashcards
                 self.previous_flashcards.append(flashcard)  
+                # Display tag
+                self.tag_label.config(text="Category: " + flashcard.get_tag())
                 # Display question
-                self.question_label.config(text=flashcard.question)  
+                self.question_label.config(text="Q:" + flashcard.get_question())  
                 # Clear answer until 'Show Answer' is clicked
-                self.answer_label.config(text="")
+                self.answer_label.config(text="Ans: ?")
                 break
 
     def show_answer(self):
@@ -343,9 +385,13 @@ class FlashcardApp:
             self.status_label.config(text="No flashcard to show answer for.")
         # Show answer
         else:
-            current_flashcard = next((fc for fc in self.manager.flashcards if fc.question == self.question_label.cget("text")), None)
+            current_question = self.question_label.cget("text").replace("Q:", "").strip()
+            current_flashcard = next((fc for fc in self.manager.flashcards if fc.get_question() == current_question), None)
+            
             if current_flashcard:
-                self.answer_label.config(text=current_flashcard.answer)
+                self.answer_label.config(text="Ans: " + current_flashcard.get_answer())
+            else:
+                self.status_label.config(text="Flashcard not found.")
 
 # Execute
 if __name__ == "__main__":
